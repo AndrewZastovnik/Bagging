@@ -49,7 +49,7 @@ class bagging():
             elif self.method == "average":
                 pred = np.zeros(X.shape[0])
                 for i in np.arange(self.n):
-                    pred += self.bootstraps[i].predict(X)/X.shape[0]
+                    pred += self.bootstraps[i].predict(X)/self.n
             else:
                 print("Select a valid aggregation method")
             return pred
