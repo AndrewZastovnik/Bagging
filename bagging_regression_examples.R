@@ -1,3 +1,6 @@
+#----------------------------------------------------------------------------------------------------
+# Successful Regression Example
+# Simulated Data
 
 set.seed(10)
 y <- c(1:1000)
@@ -23,7 +26,7 @@ library(foreach)
 length_divisor<-4
 iterations<-1000
 predictions<-foreach(m=1:iterations,.combine=cbind) %do% {
-  training_positions <- sample(nrow(training), size=floor((nrow(training)/length_divisor)))
+  training_positions <- sample(nrow(training), size=750, replace=TRUE)
   train_pos<-1:nrow(training) %in% training_positions
   lm_fit<-lm(y~x1+x2+x3,data=training[train_pos,])
   predict(lm_fit,newdata=testing)
@@ -32,19 +35,12 @@ head(predictions)
 predictions<-rowMeans(predictions)
 error<-sqrt((sum((testing$y-predictions)^2))/nrow(testing))
 
-bagging<-function(training,testing,length_divisor=4,iterations=1000)
-{
-  predictions<-foreach(m=1:iterations,.combine=cbind) %do% {
-    training_positions <- sample(nrow(training), size=floor((nrow(training)/length_divisor)))
-    train_pos<-1:nrow(training) %in% training_positions
-    lm_fit<-lm(y~x1+x2+x3,data=training[train_pos,])
-    predict(lm_fit,newdata=testing)
-  }
-  rowMeans(predictions)
-}
+
 
 #----------------------------------------------------------------------------------------------------
-#Iris Data
+# Example not included in the presentation
+# Logistic Regression Classification
+# Iris Data
 
 library(datasets)
 iris<- iris
@@ -71,7 +67,7 @@ library(foreach)
 length_divisor<-3
 iterations<-15
 predictions<-foreach(m=1:iterations,.combine=cbind) %do% {
-  training_positions <- sample(nrow(ir_train), size=floor((nrow(ir_train)/length_divisor)))
+  training_positions <- sample(nrow(ir_train), size=75,replace=TRUE)
   train_pos<-1:nrow(ir_train) %in% training_positions
   glm_fit<-glm(Species~Sepal.Length+Sepal.Width+Petal.Length+Petal.Width ,
                data=ir_train[train_pos,],family = binomial)
@@ -83,7 +79,9 @@ table(ir_test$Species, predictions > 0.5)
 
 
 #-----------------------------------------------------------------------------
-## read diabetes data
+# Unsuccessful Regression Example
+# Diabetes Dataset
+
 require(RCurl)
 binData <- getBinaryURL("https://archive.ics.uci.edu/ml/machine-learning-databases/00296/dataset_diabetes.zip",
                         ssl.verifypeer=FALSE)
@@ -145,11 +143,14 @@ testdf <-  diabetes[-split,]
 
 predictorNames <- setdiff(names(traindf), outcomeName)
 fit <- lm(readmitted ~ ., data = traindf)
+summary(fit)
 preds <- predict(fit, testdf[,predictorNames], se.fit = TRUE)
 
 error<-sqrt((sum((testdf$readmitted-preds$fit)^2))/nrow(testdf))
+error
 library(pROC)
 print(auc(testdf[,outcomeName], preds$fit))
+
 
 ## bagging ---------------------------------------------------------
 library(foreach)
@@ -160,15 +161,40 @@ cl<-makeCluster(8)
 registerDoParallel(cl)
 
 # divide row size by 20, sample data 400 times 
-length_divisor <- 20
-predictions<-foreach(m=1:400,.combine=cbind) %dopar% { 
+length_divisor <- 50
+predictions<-foreach(m=1:500,.combine=cbind) %do% { 
   # using sample function without seed
   sampleRows <- sample(nrow(traindf), size=floor((nrow(traindf)/length_divisor)))
   fit <- lm(readmitted ~ ., data = traindf[sampleRows,])
   predictions <- data.frame(predict(object=fit, testdf[,predictorNames], se.fit = TRUE)[[1]])
 } 
-stopCluster(cl)
+
+predictions<-rowMeans(predictions)
+error<-sqrt((sum((testdf$readmitted-predictions)^2))/nrow(testdf))
+error
 
 library(pROC)
-auc(testdf[,outcomeName], rowMeans(predictions))
+auc(testdf[,outcomeName], (predictions))
+#----------------------------------------
+library(ipred)
 
+set.seed(10)
+y <- c(1:1000)
+x1 <- c(1:1000)*runif(1000,min=0,max=2)
+x2 <- c(1:1000)*runif(1000,min=0,max=2)
+x3 <- c(1:1000)*runif(1000,min=0,max=2)
+
+all.data <- data.frame (y,x1,x2,x3)
+positions <- sample(nrow(all.data),size= floor(nrow(all.data)*3/4))
+training <- all.data[positions,]
+testing <- all.data[-positions,]
+
+lm_fit1 <- lm(y~x1+x2+x3,data=training)
+summary(lm_fit1)
+predictions<-predict(lm_fit1,newdata=testing)
+error <- (sum((predictions-testing$y)^2)/(nrow(testing)))^(1/2)
+
+
+model1 <- bagging(y ~.,data=testing,nbag=50)
+per1 <- predict(model1,newdata=testing)
+error <- (sum((per1-testing$y)^2)/(nrow(testing)))^(1/2)
